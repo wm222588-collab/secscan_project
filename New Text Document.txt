@@ -1,0 +1,57 @@
+#!/bin/bash
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+TARGET="$1"
+REPORT_DIR="report"
+SCAN_FILE="$REPORT_DIR/scan.txt"
+FINDINGS_FILE="$REPORT_DIR/findings.txt"
+
+
+if [ -z "$TARGET" ]; then
+    echo -e "${RED}[-] No Target provided.${NC}"
+    echo "Usage: ./secscan.sh <target>"
+    exit 1
+fi
+
+mkdir -p "$REPORT_DIR"
+
+for tool in nmap curl ftp; do
+    if ! command -v "$tool" &> /dev/null; then
+        echo -e "${RED}[-] Missing dependency: [-] $tool is not installed.${NC}"
+        exit 1
+    fi
+done
+
+echo -e "${YELLOW}[*] Checking if target $TARGET is reachable...${NC}"
+if ! ping -c 2 "$TARGET" &> /dev/null; then
+    echo -e "${RED}[-] Target unreachable: [-] $TARGET is unreachable${NC}"
+    exit 1
+fi
+
+
+echo -e "${YELLOW}[*] Starting port scanning on $TARGET...${NC}"
+nmap -sV "$TARGET" > "$SCAN_FILE"
+echo -e "${GREEN}[+] Scan completed successfully.${NC}"
+
+echo -e "${YELLOW}[*] Analyzing detected services...${NC}"
+
+if grep -qi "ftp" "$SCAN_FILE"; then
+    echo -e "${GREEN}[+] FTP detected${NC}"
+    echo -e "${YELLOW}[*] Starting FTP enumeration...${NC}"
+    if [ -f "./modules/ftp.sh" ]; then
+        ./modules/ftp.sh "$TARGET" "$FINDINGS_FILE"
+    else
+        echo -e "${RED}[-] ftp.sh not found.${NC}"
+fi
+fi
+if grep -qi "http" "$SCAN_FILE"; then
+    echo -e "${GREEN}[+] HTTP detected${NC}"
+    echo -e "${YELLOW}[*] Starting HTTP enumeration...${NC}"
+    if [ -f "./modules/http.sh" ]; then
+        ./modules/http.sh "$TARGET" "$FINDINGS_FILE"
+    fi
+fi
